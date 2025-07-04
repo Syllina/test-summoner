@@ -7,34 +7,34 @@ on:
       - "v*"
 
 jobs:
-  create_release:
-    name: Create Github Release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
+  # create_release:
+  #   name: Create Github Release
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Check out code
+  #       uses: actions/checkout@v4
 
-      - name: Create Release
-        id: create_release
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          name: Release ${{ github.ref }}
-          draft: true
-          prerelease: false
+  #     - name: Create Release
+  #       id: create_release
+  #       uses: softprops/action-gh-release@v2
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       with:
+  #         tag_name: ${{ github.ref }}
+  #         name: Release ${{ github.ref }}
+  #         draft: true
+  #         prerelease: false
 
-      - name: Output Release URL File
-        run: echo "${{ steps.create_release.outputs.upload_url }}" > release_url.txt
-      - name: Save Release URL File for publish
-        uses: actions/upload-artifact@v4
-        with:
-          name: release_url
-          path: release_url.txt
+  #     - name: Output Release URL File
+  #       run: echo "${{ steps.create_release.outputs.upload_url }}" > release_url.txt
+  #     - name: Save Release URL File for publish
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: release_url
+  #         path: release_url.txt
 
   build_artifact:
-    needs: [create_release]
+    # needs: [create_release]
     name: ${{ matrix.os }}/GHC ${{ matrix.ghc }}/${{ github.ref }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -42,15 +42,15 @@ jobs:
         # os: [ubuntu-latest, macOS-latest, windows-latest]
         os: [windows-latest]
         ghc:
-          - "9.6.3"
-        cabal: ["3.2"]
+          - "9.12.2"
+        cabal: ["3.14.2"]
           # exclude:
           #   - os: windows-latest
           #     ghc: 8.8.3
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set tag name
         uses: olegtarasov/get-tag@v2.1.4
@@ -60,56 +60,63 @@ jobs:
           tagRegexGroup: 1
 
       - name: Setup Haskell
-        uses: actions/setup-haskell@v1.1.1
-        id: setup-haskell-cabal
+        uses: actions/setup-haskell@v2.8.0
+        id: setup-haskell-stack
         with:
-          ghc-version: ${{ matrix.ghc }}
-          cabal-version: ${{ matrix.cabal }}
+          enable-stack: true
+          stack-no-global: true
+            # ghc-version: ${{ matrix.ghc }}
+            # cabal-version: ${{ matrix.cabal }}
 
-      - name: Freeze
-        run: |
-          cabal freeze
+            # - name: Freeze
+            #   run: |
+            #     cabal freeze
 
-      - name: Cache ~/.cabal/store
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
-          key: ${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+            # - name: Cache ~/.cabal/store
+            #   uses: actions/cache@v4
+            #   with:
+            #     path: ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
+            #     key: ${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('cabal.project.freeze') }}
 
       - name: Build binary
         run: |
           mkdir dist
-          cabal install exe:hsco --install-method=copy --overwrite-policy=always --installdir=dist
+          stack --local-bin-path dist install
 
-      - if: matrix.os == 'windows-latest'
-        name: Set extension to .exe on Windows
-        run: echo "::set-env name=EXT::.exe"
 
-      - name: Set binary path name
-        run: echo "::set-env name=BINARY_PATH::./dist/hsco${{ env.EXT }}"
-
-      - name: Compress binary
-        uses: svenstaro/upx-action@2.0.1
+      - name: Create release
+        uses: softprops/action-gh-releases@v2
         with:
-          file: ${{ env.BINARY_PATH }}
+          files: dist/test-summoner.exe
+          # - if: matrix.os == 'windows-latest'
+          #   name: Set extension to .exe on Windows
+          #   run: echo "::set-env name=EXT::.exe"
 
-      - name: Load Release URL File from release job
-        uses: actions/download-artifact@v4
-        with:
-          name: release_url
+          # - name: Set binary path name
+          #   run: echo "::set-env name=BINARY_PATH::./dist/hsco${{ env.EXT }}"
 
-      - name: Get Release File Name & Upload URL
-        id: get_release_info
-        run: |
-          echo "::set-output name=upload_url::$(cat release_url/release_url.txt)"
+          # - name: Compress binary
+          #   uses: svenstaro/upx-action@2.0.1
+          #   with:
+          #     file: ${{ env.BINARY_PATH }}
 
-      - name: Upload Release Asset
-        id: upload-release-asset
-        uses: actions/upload-release-asset@v1.0.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.get_release_info.outputs.upload_url }}
-          asset_path: ${{ env.BINARY_PATH }}
-          asset_name: hsco-${{ steps.tag.outputs.tag }}-${{ runner.os }}-ghc-${{ matrix.ghc }}${{ env.EXT }}
-          asset_content_type: application/octet-stream
+          # - name: Load Release URL File from release job
+          #   uses: actions/download-artifact@v4
+          #   with:
+          #     name: release_url
+
+          # - name: Get Release File Name & Upload URL
+          #   id: get_release_info
+          #   run: |
+          #     echo "::set-output name=upload_url::$(cat release_url/release_url.txt)"
+
+          # - name: Upload Release Asset
+          #   id: upload-release-asset
+          #   uses: actions/upload-release-asset@v1.0.1
+          #   env:
+          #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          #   with:
+          #     upload_url: ${{ steps.get_release_info.outputs.upload_url }}
+          #     asset_path: ${{ env.BINARY_PATH }}
+          #     asset_name: hsco-${{ steps.tag.outputs.tag }}-${{ runner.os }}-ghc-${{ matrix.ghc }}${{ env.EXT }}
+          #     asset_content_type: application/octet-stream
