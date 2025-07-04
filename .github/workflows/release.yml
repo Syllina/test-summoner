@@ -60,7 +60,7 @@ jobs:
           tagRegexGroup: 1
 
       - name: Setup Haskell
-        uses: actions/setup-haskell@v2.8.0
+        uses: haskell-actions/setup@v2
         id: setup-haskell-stack
         with:
           enable-stack: true
@@ -85,7 +85,7 @@ jobs:
 
 
       - name: Create release
-        uses: softprops/action-gh-releases@v2
+        uses: softprops/action-gh-release@v2
         with:
           files: dist/test-summoner.exe
           # - if: matrix.os == 'windows-latest'
